@@ -1,201 +1,294 @@
-/*웹서버 구축하기*/
-//모듈이란? 기능을 모아놓은 자바스크립트 파일... js
-var http = require("http"); // http내부 모듈 가져오기 
-var url = require("url"); //url 분석 모듈 
-var fs = require("fs"); //file system 모듈(파일 읽기, 쓰기)
-var mysql = require("mysql"); // mysql 외부모듈 
-var ejs = require("ejs"); //node 서버에서만 실행가능한 문서
-                                    //html로 채워졌다고 하여,  html문서로 보면 안됨
+var http = require("http");
+var url = require("url");
+var fs = require("fs");
+var mysql = require("mysql");
+var ejs = require("ejs");
+var qs = require("querystring"); 
+let con;
+var urlJson;
 
-//mysql 접속 문자열
-let conStr={
-    url:"localhost",
-    user:"root",
-    password:"whgP1221",
-    database:"node"
-};
-var con; //mysql 접속 정보를 가진 객체, 이 객체로 sql 문을 수행할 수 있다
-
-//서버 객체 생성 
 var server = http.createServer(function(request, response){
+    //요청 구분 
+    urlJson = url.parse(request.url, true);
+    //console.log("urlJson : ", urlJson);
 
-    //클라이언트가 원하는 요청을 처리하려면,  URL을 분석을 하여 URI추출해서 조건을 따져보자
-    var urlJson = url.parse(request.url, true);//분석 결과를 json으로 반환해줌 
-    console.log("URL 분석 결과는 ", urlJson);
-
-    if(urlJson.pathname=="/"){
-        fs.readFile("./index.html", "utf-8", function(error, data){
+    if(urlJson.pathname=="/"){//메인을 요청하면..
+        fs.readFile("./index.html","utf-8", function(error, data){
             if(error){
-                console.log("index.html 읽기 실패", error);
+                console.log("index.html 읽기실패", error);
             }else{
-                //200이란???  처리성공 HTTP 상태코드 , 404 존재안하는 자원, 500 서버의 심각한 에러
-                response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
+                response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
                 response.end(data);
             }
-        });
-    }else if(urlJson.pathname=="/member/registForm"){
-        fs.readFile("./registForm.html", "utf-8", function(error, data){
-            if(error){
-                console.log("registForm.html읽기 실패", error);
-            }else{
-                //200이란???  처리성공 HTTP 상태코드 , 404 존재안하는 자원, 500 서버의 심각한 에러
-                response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-                response.end(data);
-            }
-        });
+        })
+    }else if(urlJson.pathname=="/member/registForm"){//가입폼을  요청하면...
+        registForm(request, response);
+    }else if(urlJson.pathname=="/member/regist"){//가입을 요청하면..
+        regist(request, response);
+    }else if(urlJson.pathname=="/member/loginForm"){//로그인 폼을 요청하면..
 
-    }else if(urlJson.pathname=="/member/loginForm"){
-        fs.readFile("./loginForm.html", "utf-8", function(error, data){
-            if(error){
-                console.log("loginForm.html 읽기 실패", error);
-            }else{
-                //200이란???  처리성공 HTTP 상태코드 , 404 존재안하는 자원, 500 서버의 심각한 에러
-                response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-                response.end(data);
-            }
-        });
-    }else if(urlJson.pathname=="/member/regist"){
-        //브라우저에서 전송된 파라미터를 먼저 받아야 한다..
-        //get방식의 파라미터 받기 
-        //회원정보는 member2 테이블에 넣고 
-        var sql="insert into member2(uid,password,uname,phone,email,receive,addr,memo)";
-        sql+=" values(?,?,?,?,?,?,?,?)"; //물음표는 바인드 변수를 의미..(나중에 강의)
-        var param=urlJson.query;
-        con.query(sql, [
-                param.uid, 
-                param.password, 
-                param.uname , 
-                param.phone, 
-                param.email, 
-                param.receive , 
-                param.addr, 
-                param.memo
-            ], function(error, result, fields){
-                if(error){
-                    console.log("회원정보 insert 실패", error);
-                }else{
-                    //방금 insert 된 회원의 pk를 조회해보자 
-                    sql="select last_insert_id() as member2_id";
-
-                    con.query(sql, function(error, record, fields){
-                        if(error){
-                            console.log("pk가져오기 실패", error);
-                        }else{
-                             console.log("record : ", record);   
-                             var member2_id=record[0].member2_id;
-                             //성공하면, 회원이 보유한 스킬 정보도 넣어주자 
-                             //스킬정보는 member_skill에 넣자(배열의 길이만큼..)
-                             for(var i=0;i<param.skill_id.length;i++){         
-                                 sql="insert into member_skill(member2_id, skill_id) values("+member2_id+" , "+param.skill_id[i]+")";              
-                                 console.log("스킬 등록 쿼리 : ", sql);
-                                 //쿼리 실행 
-                                 con.query(sql,function(err){
-                                    if(err){
-                                        alert("회원정보 등록 실패");    
-                                    }else{
-                                        response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-                                        response.end("회원정보 등록완료");
-                                    }   
-                                 });
-                             }
-                        }                                                    
-                    });//select 쿼리문 수행
-
-                } 
-        } );
-
-    }else if(urlJson.pathname=="/member/list"){
-        //회원목록 보여주기 
-        var sql="select * from member2";
-
-        con.query(sql, function(error, record, fields){
-            //console.log("회원목록 : ", record);
-            
-            //응답 정보를 테이블로 구성하자 
-            var tag="<table width='100%' border='1px'>";
-            tag += "<tr>";
-            tag += "<td>member2_id</td>";
-            tag += "<td>uid</td>";
-            tag += "<td>password</td>";
-            tag += "<td>uname</td>";
-            tag += "<td>phone</td>";
-            tag += "<td>email</td>";
-            tag += "<td>receive</td>";
-            tag += "<td>addr</td>";
-            tag += "<td>memo</td>";
-            tag += "</tr>";
-
-            for(var i=0;i<record.length;i++){
-                var member = record[i];//각각의 json을 끄집어 내자
-                tag += "<tr>";
-                tag += "<td><a href='/member/detail?member2_id="+member.member2_id+"'>"+member.member2_id+"</a></td>";
-                tag += "<td>"+member.uid+"</td>";
-                tag += "<td>"+member.password+"</td>";
-                tag += "<td>"+member.uname+"</td>";
-                tag += "<td>"+member.phone+"</td>";
-                tag += "<td>"+member.email+"</td>";
-                tag += "<td>"+member.receive+"</td>";
-                tag += "<td>"+member.addr+"</td>";
-                tag += "<td>"+member.memo+"</td>";
-                tag += "</tr>";
-            }
-            tag += "<tr>";
-            tag += "<td colspan='9'><a href='/'>메인으로</a></td>";
-            tag += "</tr>";
-            tag += "</table>";
-
-            response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-            response.end(tag);
-        }); 
-    }else if(urlJson.pathname=="/member/detail"){ //회원의 상세정보 요청
-        var member2_id=urlJson.query.member2_id;
-
-        //mysql 에서 데이터가져오기
-        var sql="select * from member2 where member2_id="+member2_id;
-
-        con.query(sql, function(error, record, fields){
-            if(error){
-                console.log("회원 1건 조회 실패", error);
-            }else{
-                //console.log("3번 회원의 정보 : ", record);
-                var obj = record[0];//0번째에 들어있는 json 추출 
-
-                fs.readFile("./detail.ejs", "utf-8", function(error, data){
-                    if(error){
-                        console.log("detail.ejs 읽기 실패", error);
-                    }else{
-                        response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-                        response.end(ejs.render(data, {
-                            member:obj //json 자체를 보내버림
-                        })); //그냥 보내지 말고, 서버에서 실행한 후 그 결과를 보내자
-                    }
-                });                
-            }
-        });     
-
-        
-    }else if(urlJson.pathname=="/fruit"){
-        var f1="Apple";
-        var f2="Orange";
-        fs.readFile("./test.ejs", "utf-8", function(error, data){
-            response.writeHead(200,{"Content-Type":"text/html;charset=utf-8"});
-            //ejs를 그냥 파일로 문자취급해서 보내면 원본 코드까지 가버리기 때문에,,
-            //서버에서 실행을 한 후, 그결과를 보내야 한다..(jsp, php, asp 의 원리)
-            response.end(ejs.render(data,{
-                fruit:f1
-            }));
-        });
+    }else if(urlJson.pathname=="/member/list"){//회원 목록을 요청하면..
+        getList(request, response);
+    }else if(urlJson.pathname=="/member/detail"){//회원 정보 보기를 요청하면..
+        getDetail(request, response);
+    }else if(urlJson.pathname=="/member/del"){//회원 정보 보기를 요청하면..
+        del(request, response);
+    }else if(urlJson.pathname=="/member/edit"){//회원 정보 수정을 요청하면..
+        update(request, response);
+    }else if(urlJson.pathname=="/category"){//동물구분을 요청하면..
+        getCategory(request, response);
+    }else if(urlJson.pathname=="/animal"){//소속된 동물을 요청하면...
+        getAnimal(request, response);
     }
+    
+
 });
 
-//mysql 접속 
-function getConnection(){
-    con=mysql.createConnection(conStr); //json을 매개변수로 넣어주면 됨
+//데이터 베이스 연동인 경우엔 함수로 별도로 정의 
+function registForm(request, response){
+    //회원가입폼은 디자인을 표현하기 위한 파일이므로, 기존에는 html로 충분했으나...
+    //보유기술은 DB의 데이터를 가져와서 반영해야 하므로, ejs 로 처리해야 한다...
+    var sql="select * from skill";
+    con.query(sql, function(error, record, fields){
+        if(error){
+            console.log("skill 조회실패", error);
+        }else{
+            console.log("skill record : ", record);
+            //registForm.ejs에게 json배열을 전달하자
+            fs.readFile("./registForm.ejs","utf-8", function(error, data){
+                response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                response.end(ejs.render(data, {
+                    skillArray:record
+                }));
+            });
+        }
+    });
+
 }
 
-//서버 가동 
-server.listen(7878, function(){
-    console.log("My Server is running at 7878 port...");
-    getConnection();
-});
+//회원등록 처리 
+function regist(request, response){
+    //post방식으로 전송된, 파라미터받기!! 
+    request.on("data", function(param){
+        //url모듈에게 파싱을 처리하게 하지 말고, querystring 모듈로 처리한다 
+        //console.log("post param :", new String(param).toString());
+        var postParam = qs.parse(new String(param).toString());
+        console.log("postParam : ", postParam);
 
+        var sql="insert into member2(uid,password,uname,phone,email,addr,memo)";
+        sql+=" values(?,?,?,?,?,?,?)"; //물음표를 바인드 변수라 한다
+
+        con.query(sql,[ 
+               postParam.uid,
+               postParam.password,
+               postParam.uname,
+               postParam.phone,
+               postParam.email,
+               postParam.addr,
+               postParam.memo
+            ], function(error, fields){
+                if(error){
+                    console.log("등록실패",error);
+                }else{
+                    //목록페이지 보여주기
+                    //등록되었음을 alert()으로 알려주고, /member/list 로 재접속 
+                    response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                    var tag="<script>";
+                    tag+="alert('등록성공');";
+                    tag+="location.href='/member/list';"; // <a> 태그와 동일한 효과
+                    tag+="</script>";
+
+                    response.end(tag);   
+                }
+        } );
+    });
+}
+
+//회원목록 처리함수 
+function getList(request, response){
+    // 회원 목록 가져오기
+    var sql = "select * from member2";
+    con.query(sql, function(error, record, fields){
+        if(error){
+            console.log("조회 실패", error);
+        } else {
+            fs.readFile("./list.ejs", "utf-8", function(error, data){
+                if(error){
+                    console.log("list.ejs 읽기실패", error);
+                }else{
+                    response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                    response.end(ejs.render(data,{
+                        memberArray: record
+                    }));            
+                }
+            });
+        }
+    });
+}
+
+function getDetail(request,response){
+    // console.log("urlJson : ", urlJson.query);
+    var member2_id = urlJson.query.member2_id;
+    var sql = "select * from member2 where member2_id="+member2_id;
+    //var sql = "select * from member2 where member2_id =?";
+    con.query(sql, function(error, record, fields){
+        if(error){
+            console.log("한건 조회 실패", error);
+        }else{
+            fs.readFile("./detail.ejs", "utf-8", function(err, data){
+                if(err){
+                    console.log("detail.ejs 읽기실패", err);
+                }else{
+                    response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                    response.end(ejs.render(data,{
+                        member:record[0]
+                    }));
+                }
+            });
+        }
+    });
+    
+
+}
+
+//회원 1명 삭제 
+function del(request, response){
+    //get방식으로 전달된 파라미터 받기
+    var member2_id = urlJson.query.member2_id;
+    var sql="delete from member2 where member2_id="+member2_id;
+
+    //error, fields : DML(insert, update ,delete :조작)
+    //error, record, fields : select
+    con.query(sql,function(error, fields ){
+        if(error){
+            console.log("삭제 실패", error);
+        }else{
+            //alert 띄우고, 회원 목록 보여주기 
+            response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+            var tag="<script>";
+            tag+="alert('탈퇴처리되었습니다');";
+            tag+="location.href='/member/list';";
+            tag+="</script>";
+            response.end(tag);
+
+        }     
+    });
+
+}
+
+//회원정보 수정 처리
+function update(request, response){
+    //post로 전송된 파라미터들을 받자!!
+    request.on("data", function(param){
+        var postParam=qs.parse(new String(param).toString());
+        
+        //검증용
+        //var sql="update member2 set phone='"+postParam.phone+"', email='"+postParam.email+"', addr='"+postParam.addr+"',memo='"+postParam.memo+"'";
+        //sql+=", password='"+postParam.paassword+"', receive='"+postParam.receive+"' where member2_id="+postParam.member2_id;
+        
+        var sql="update member2 set phone=?, email=?, addr=?,memo=?";
+        sql+=", password=?, receive=? where member2_id=?";
+
+        con.query(sql,[ 
+                postParam.phone,
+                postParam.email,
+                postParam.addr,
+                postParam.memo,
+                postParam.password,
+                postParam.receive,
+                postParam.member2_id
+            ], function(error, fields){
+                if(error){
+                    console.log("수정실패",error);
+                }else{
+                    //alert 띄우고, 회원 목록 보여주기 
+                    response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                    var tag="<script>";
+                    tag+="alert('수정되었습니다');";
+                    tag+="location.href='/member/detail?member2_id="+postParam.member2_id+"';";
+                    tag+="</script>";
+                    response.end(tag);
+                }
+        } );
+    });
+}
+
+
+//동물의 종류 가져오기 
+function getCategory(request, response){
+    var sql="select * from category";
+
+    con.query(sql, function(error, record, fields){
+        if(error){
+            console.log("동물구분 목록 조회실패", error);
+        }else{
+            fs.readFile("./animal.ejs", "utf-8", function(err, data){
+                if(err){
+                    console.log("animal.ejs 읽기 실패", err);
+                }else{
+                    response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                    response.end(ejs.render(data,{
+                        categoryArray:record
+                    }));
+                }           
+            });
+        }
+    });
+}
+
+//소속된 동물의 목록 가져오기
+function getAnimal(request, response){
+    //카테고리 가져오기 
+    var sql="select * from category";
+    con.query(sql, function(error, record, fields){
+        if(error){
+            console.log("동물구분 목록 조회실패", error);
+        }else{
+            var categoryRecord=record; //카테고리 목록 배열
+
+            category_id = urlJson.query.category_id;//get방식의 category_id 파라미터 받기!!
+            sql="select * from animal where category_id="+category_id;
+        
+            //mysql연동 
+            con.query(sql, function(error, record, fields){
+                if(error){
+                    console.log("동물목록 가져오기 실패", error);
+                }else{
+                    console.log("record : " , record);
+        
+                    fs.readFile("./animal.ejs","utf-8", function(err, data){
+                        if(err){
+                            console.log("animal.ejs읽기 실패", err);
+                        }else{
+                            response.writeHead(200, {"Content-Type":"text/html;charset=utf-8"});
+                            response.end(ejs.render(data, {
+                                animalArray:record, 
+                                categoryArray:categoryRecord,
+                                category_id : category_id
+                            }));
+                        }
+                    });
+        
+                }
+            });
+        }
+    });
+
+
+
+}
+
+//mysql 접속 
+function connect(){
+    con=mysql.createConnection({
+        url:"localhost",
+        user:"root",
+        password:"whgP1221",
+        database:"node"
+    });
+}
+
+server.listen(7788, function(){
+    console.log("Server is running at 7788 port...");
+    connect();
+});
