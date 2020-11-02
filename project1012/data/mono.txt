@@ -1,0 +1,19 @@
+Javascript : html동적으로 제어할 수 있는 스크립트 언어
+JQuery : 자바스크립트를 간소화시켜놓은 라이브러리
+Node.js : 자바스크립트로 서버측 기술을 구현해 놓은 것
+	-공인 ip
+	-속도가 빨라야됨
+	-성능이 좋음 => 요러한 것들이 갖추어야됨
+=) 개발된 소스는 서버컴퓨터에 올려야됨
+
+[Node.js]
+- 자바스크립트이다
+- 단, HTML을 제어하기 위함이 아니라, 서버측의 기술을 구현하기 위한 
+자바스크립트이다.
+즉, 웹서버 구축이나, 채팅서버 구축에 사용된다.
+
+javaprogrammer
+oracle administrator
+front developer
+
+http : hyper text(하이퍼 텍스트가 가능한 문서) tranfer(전송) protocol(약속)
